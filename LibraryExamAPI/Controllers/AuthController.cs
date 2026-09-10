@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using LibraryExamAPI.Data;
 using LibraryExamAPI.Models;
 using LibraryExamAPI.Services;
@@ -83,11 +84,14 @@ public class AuthController : ControllerBase
             token,
             user = new
             {
-                student.StudentId,
-                student.Name,
-                student.RollNo,
-                student.Role,
-                student.Contact
+                studentId = student.StudentId,
+                name = student.Name,
+                rollNo = student.RollNo,
+                dept = student.Dept,
+                semester = student.Semester,
+                email = student.Contact,
+                role = student.Role,
+                isVerified = student.IsVerified
             }
         });
     }
@@ -127,6 +131,123 @@ public class AuthController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new { message = $"{request.Role} account created successfully.", userId = user.StudentId });
+    }
+
+    [HttpGet("users")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetUsers()
+    {
+        var users = await _db.Students
+            .OrderBy(s => s.Role)
+            .ThenBy(s => s.Name)
+            .Select(s => new
+            {
+                studentId = s.StudentId,
+                name = s.Name,
+                rollNo = s.RollNo,
+                dept = s.Dept,
+                semester = s.Semester,
+                email = s.Contact,
+                role = s.Role,
+                isVerified = s.IsVerified
+            })
+            .ToListAsync();
+
+        return Ok(users);
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> GetCurrentUser()
+    {
+        var email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email");
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Unauthorized();
+        }
+
+        var user = await _db.Students
+            .Where(s => s.Contact == email)
+            .Select(s => new
+            {
+                studentId = s.StudentId,
+                name = s.Name,
+                rollNo = s.RollNo,
+                dept = s.Dept,
+                semester = s.Semester,
+                email = s.Contact,
+                role = s.Role,
+                isVerified = s.IsVerified
+            })
+            .FirstOrDefaultAsync();
+
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(user);
+    }
+
+    [HttpPut("admin/users/{id:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateUserByAdmin(int id, [FromBody] UpdateUserRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        if (!AllowedRoles.Contains(request.Role))
+        {
+            return BadRequest(new { message = "Role must be one of: Student, Librarian, Exam Coordinator, Admin." });
+        }
+
+        var user = await _db.Students.FirstOrDefaultAsync(s => s.StudentId == id);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        var duplicateExists = await _db.Students
+            .AnyAsync(s => s.StudentId != id && (s.RollNo == request.RollNo || s.Contact == request.Email));
+        if (duplicateExists)
+        {
+            return BadRequest(new { message = "A user with this roll number or email already exists." });
+        }
+
+        user.Name = request.Name;
+        user.RollNo = request.RollNo;
+        user.Dept = request.Dept;
+        user.Semester = request.Semester;
+        user.Contact = request.Email;
+        user.Role = request.Role;
+        user.IsVerified = request.IsVerified;
+
+        if (!string.IsNullOrWhiteSpace(request.Password))
+        {
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        }
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "User updated successfully." });
+    }
+
+    [HttpDelete("admin/users/{id:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteUserByAdmin(int id)
+    {
+        var user = await _db.Students.FirstOrDefaultAsync(s => s.StudentId == id);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        _db.Students.Remove(user);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "User deleted successfully." });
     }
 
     [HttpPost("logout")]
@@ -234,4 +355,29 @@ public class CreateUserRequest
 
     [Required]
     public string Role { get; set; } = "Student";
+}
+
+public class UpdateUserRequest
+{
+    [Required, MinLength(3)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required, MinLength(3)]
+    public string RollNo { get; set; } = string.Empty;
+
+    [Required]
+    public string Dept { get; set; } = string.Empty;
+
+    [Required]
+    public int Semester { get; set; }
+
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    public string? Password { get; set; }
+
+    [Required]
+    public string Role { get; set; } = "Student";
+
+    public bool IsVerified { get; set; }
 }

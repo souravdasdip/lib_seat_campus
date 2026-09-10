@@ -7,7 +7,7 @@
 }
 
 .auth-card {
-  width: min(760px, 100%);
+  width: min(980px, 100%);
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 22px;
@@ -52,7 +52,9 @@
 
 .auth-form input,
 .auth-form select,
-.auth-form button {
+.auth-form button,
+.secondary-button,
+.danger-button {
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.3);
   background: rgba(15, 23, 42, 0.85);
@@ -91,7 +93,9 @@
   color: #dbeafe;
 }
 
-.admin-panel {
+.dashboard-panel,
+.admin-panel,
+.librarian-panel {
   display: grid;
   gap: 20px;
 }
@@ -108,11 +112,237 @@
   color: #f8fafc;
 }
 
+.admin-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-summary strong {
+  font-size: 1.1rem;
+}
+
+.admin-summary span {
+  color: #cbd5e1;
+}
+
+.logout-button,
+.secondary-button,
+.danger-button {
+  cursor: pointer;
+}
+
 .logout-button {
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.4);
   color: #fecaca;
+}
+
+.secondary-button {
+  background: rgba(59, 130, 246, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  color: #dbeafe;
+}
+
+.danger-button {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fecaca;
+}
+
+.button-row,
+.action-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.checkbox-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+}
+
+.table-panel {
+  overflow: auto;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.table-panel h2,
+.librarian-panel h2 {
+  margin: 0 0 12px;
+  color: #f8fafc;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #e2e8f0;
+}
+
+th, td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+th {
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.profile-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.profile-card > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #dbeafe;
+}
+
+.profile-card label {
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.restricted-note {
+  margin: 0;
+  color: #bfdbfe;
+}
+
+.split-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.password-meter {
+  display: grid;
+  gap: 8px;
+}
+
+.meter-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+}
+
+.meter-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f97316, #38bdf8, #22c55e);
+  transition: width 0.2s ease;
+}
+
+.password-rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  color: #bfdbfe;
+  font-size: 0.82rem;
+}
+
+.password-rules li::before {
+  content: '•';
+  margin-right: 6px;
+  color: #94a3b8;
+}
+
+.password-rules li.valid {
+  color: #86efac;
+}
+
+.auth-form small {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.auth-form .ok {
+  color: #86efac;
+}
+
+.auth-form .warn {
+  color: #fca5a5;
+}
+
+.message {
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+.message.success {
+  background: rgba(34, 197, 94, 0.16);
+  color: #bbf7d0;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.message.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fecaca;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.auth-form button,
+.secondary-button,
+.danger-button,
+.logout-button {
   cursor: pointer;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border: none;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.auth-form button:hover,
+.secondary-button:hover,
+.danger-button:hover,
+.logout-button:hover {
+  transform: translateY(-1px);
+}
+
+.auth-form button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    padding: 22px 18px;
+  }
+
+  .split-fields,
+  .password-rules,
+  .profile-card {
+    grid-template-columns: 1fr;
+  }
 }
 
 .auth-form input:focus,
