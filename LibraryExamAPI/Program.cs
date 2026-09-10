@@ -1,5 +1,6 @@
 using System.Text;
 using LibraryExamAPI.Data;
+using LibraryExamAPI.Hubs;
 using LibraryExamAPI.Models;
 using LibraryExamAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -11,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSignalR();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -77,6 +79,7 @@ if (!app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapControllers();
 
 app.MapGet("/api/ping", () => new { status = "ok", message = "LibraryExamAPI is running." })
