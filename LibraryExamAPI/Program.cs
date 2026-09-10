@@ -1,4 +1,6 @@
 using System.Text;
+using HotChocolate;
+using LibraryExamAPI;
 using LibraryExamAPI.Data;
 using LibraryExamAPI.Hubs;
 using LibraryExamAPI.Models;
@@ -51,6 +53,10 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddScoped<JwtTokenService>();
 
+builder.Services
+    .AddGraphQLServer()
+    .AddQueryType<QueryType>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClientApp", policy =>
@@ -80,6 +86,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapGraphQL();
 app.MapControllers();
 
 app.MapGet("/api/ping", () => new { status = "ok", message = "LibraryExamAPI is running." })

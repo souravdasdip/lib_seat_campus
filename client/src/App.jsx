@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import * as signalR from '@microsoft/signalr';
 import './App.css';
 
 const initialForm = {
@@ -60,6 +61,7 @@ function App() {
   const [reactionType, setReactionType] = useState('like');
   const [notifications, setNotifications] = useState([]);
   const [notificationMessage, setNotificationMessage] = useState('');
+  const [recommendedBooks, setRecommendedBooks] = useState([]);
   const [libraryForm, setLibraryForm] = useState({
     title: '',
     author: '',
@@ -126,7 +128,29 @@ function App() {
 
     if (currentUser.role === 'Student') {
       loadStudentData();
+      loadRecommendations();
     }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl('http://localhost:5121/hubs/notifications')
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on('ReceiveNotification', (payload) => {
+      setNotifications((current) => [{ type: 'live', message: payload.message }, ...current].slice(0, 8));
+    });
+
+    connection.start().catch(() => {
+      setNotifications((current) => [...current, { type: 'info', message: 'Realtime updates are unavailable right now.' }]);
+    });
+
+    return () => {
+      connection.stop();
+    };
   }, [currentUser]);
 
   const loadUsers = async () => {
@@ -288,6 +312,22 @@ function App() {
       setBookDetails(data);
     } catch (error) {
       setStatus({ type: 'error', message: error.message });
+    }
+  };
+
+  const loadRecommendations = async () => {
+    try {
+      const token = localStorage.getItem('libraryToken');
+      const response = await fetch('http://localhost:5121/api/Library/recommendations', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to load recommendations');
+      }
+      setRecommendedBooks(data.recommendations || []);
+    } catch (error) {
+      setRecommendedBooks([]);
     }
   };
 
@@ -1031,6 +1071,19 @@ function App() {
                   <div className="stat-card">
                     <span>Outstanding fine</span>
                     <strong>{myLibraryIssues.reduce((sum, issue) => sum + (issue.fineAmount || 0), 0)}</strong>
+                  </div>
+                </div>
+
+                <div className="table-panel">
+                  <h2>Recommended for you</h2>
+                  <div className="comment-list">
+                    {recommendedBooks.map((book) => (
+                      <div key={book.bookId} className="comment-item">
+                        <strong>{book.title}</strong>
+                        <span>{book.genre}</span>
+                        <p>{book.author} · {book.copiesAvailable} copies available</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
