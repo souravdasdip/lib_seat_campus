@@ -305,6 +305,74 @@ public class LibraryController : ControllerBase
         return Ok(new { message = "Book deleted successfully." });
     }
 
+    [HttpGet("recommendations")]
+    [Authorize]
+    public async Task<IActionResult> GetRecommendations()
+    {
+        var email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email");
+        var student = !string.IsNullOrWhiteSpace(email)
+            ? await _db.Students.FirstOrDefaultAsync(s => s.Contact == email)
+            : null;
+
+        var borrowedGenreQuery = _db.IssueRecords
+            .Include(i => i.Book)
+            .Where(i => student == null || i.StudentId == student.StudentId)
+            .GroupBy(i => i.Book.Genre)
+            .Select(g => new { Genre = g.Key, Count = g.Count() })
+            .OrderByDescending(g => g.Count)
+            .Take(2)
+            .ToList();
+
+        var preferredGenres = borrowedGenreQuery.Select(g => g.Genre).ToList();
+
+        var booksQuery = _db.Books.AsQueryable();
+
+        if (preferredGenres.Count > 0)
+        {
+            booksQuery = booksQuery.Where(b => preferredGenres.Contains(b.Genre));
+        }
+
+        var books = await booksQuery
+            .OrderByDescending(b => b.CopiesAvailable)
+            .ThenBy(b => b.Title)
+            .Take(5)
+            .Select(b => new
+            {
+                bookId = b.BookId,
+                title = b.Title,
+                author = b.Author,
+                genre = b.Genre,
+                copiesAvailable = b.CopiesAvailable
+            })
+            .ToListAsync();
+
+        if (books.Count == 0)
+        {
+            books = await _db.Books
+                .OrderBy(b => b.Title)
+                .Take(5)
+                .Select(b => new
+                {
+                    bookId = b.BookId,
+                    title = b.Title,
+                    author = b.Author,
+                    genre = b.Genre,
+                    copiesAvailable = b.CopiesAvailable
+                })
+                .ToListAsync();
+        }
+
+        var basedOn = preferredGenres.Count > 0
+            ? preferredGenres.Cast<object>().ToList()
+            : new List<object> { "general circulation" };
+
+        return Ok(new
+        {
+            recommendations = books,
+            basedOn
+        });
+    }
+
     [HttpGet("books/{id:int}/details")]
     [Authorize]
     public async Task<IActionResult> GetBookDetails(int id)
