@@ -12,6 +12,12 @@ pnpm-debug.log*
 # .NET / backend
 **/bin/
 **/obj/
+**/*.dll
+**/*.pdb
+**/*.deps.json
+**/*.runtimeconfig.json
+**/*.runtimeconfig.dev.json
+**/*.generated.cs
 *.user
 *.suo
 *.userosscache
