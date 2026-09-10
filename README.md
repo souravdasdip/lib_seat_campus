@@ -11,6 +11,8 @@ This project supports:
 - Default admin account startup seeding
 - Admin user management (create, edit, delete, list all users)
 - Librarian-only profile view
+- Library book management and issue/return tracking
+- Exam room, invigilator, and seat-allocation management
 - Role-restricted access across the app
 
 ## Project structure
@@ -100,6 +102,9 @@ Admin can:
 ### Librarian
 A librarian account can be created by the admin. Once logged in, a librarian sees only their own profile view and does not see the global user list.
 
+### Exam Coordinator
+An exam coordinator can create rooms, add invigilators, schedule exams, and generate seat allocations without viewing the global user admin list.
+
 ### Student
 Students can register via the registration form and then log in with their own email and password.
 
@@ -164,4 +169,4 @@ npm run build
 
 ## Summary
 
-This project is structured for a university library/exam system with RBAC support. The default admin is seeded automatically, admin user management is enabled, and librarian access is intentionally restricted to only their own profile view.
+This project is structured for a university library/exam system with RBAC support. The default admin is seeded automatically, admin user management is enabled, library operations are available to admins and librarians, and exam coordination is available to admins and exam coordinators for rooms, staff, exams, and seat allocation planning.
