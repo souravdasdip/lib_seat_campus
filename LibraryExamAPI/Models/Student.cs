@@ -22,6 +22,9 @@ public class Student
     [Required, MaxLength(100)]
     public string Contact { get; set; } = string.Empty;
 
+    [MaxLength(255)]
+    public string PasswordHash { get; set; } = string.Empty;
+
     [Required, MaxLength(50)]
     public string Role { get; set; } = "Student";
 
