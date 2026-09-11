@@ -23,11 +23,13 @@ public class AuthController : ControllerBase
 
     private readonly AppDbContext _db;
     private readonly JwtTokenService _jwtTokenService;
+    private readonly IOtpEmailService _otpEmailService;
 
-    public AuthController(AppDbContext db, JwtTokenService jwtTokenService)
+    public AuthController(AppDbContext db, JwtTokenService jwtTokenService, IOtpEmailService otpEmailService)
     {
         _db = db;
         _jwtTokenService = jwtTokenService;
+        _otpEmailService = otpEmailService;
     }
 
     [HttpPost("register")]
@@ -43,6 +45,7 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "A student with this roll number or email already exists." });
         }
 
+        var otpCode = LibraryRules.GenerateOtpCode();
         var student = new Student
         {
             Name = request.Name,
@@ -55,10 +58,76 @@ public class AuthController : ControllerBase
             IsVerified = false
         };
 
+        OtpStore[request.Email.Trim()] = otpCode;
+        await _otpEmailService.SendOtpAsync(request.Email.Trim(), otpCode);
+
+        await _db.AuditLogs.AddAsync(new AuditLog
+        {
+            Action = "RegisterUser",
+            EntityType = "Student",
+            EntityId = 0,
+            PerformedBy = request.Email,
+            Details = $"Registration initiated. OTP: {otpCode}."
+        });
+
         _db.Students.Add(student);
         await _db.SaveChangesAsync();
 
-        return Ok(new { message = "Registration successful.", studentId = student.StudentId });
+        return Ok(new { message = "Registration successful. Please verify your OTP.", studentId = student.StudentId, otpCode });
+    }
+
+    private static readonly Dictionary<string, string> OtpStore = new(StringComparer.OrdinalIgnoreCase);
+
+    [HttpPost("send-otp")]
+    public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var student = await _db.Students.FirstOrDefaultAsync(s => s.Contact == request.Email);
+        if (student == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        var otpCode = LibraryRules.GenerateOtpCode();
+        OtpStore[request.Email.Trim()] = otpCode;
+        await _otpEmailService.SendOtpAsync(request.Email.Trim(), otpCode);
+
+        return Ok(new { message = "OTP sent successfully.", otpCode });
+    }
+
+    [HttpPost("verify-otp")]
+    public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var student = await _db.Students.FirstOrDefaultAsync(s => s.Contact == request.Email);
+        if (student == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        if (student.IsVerified)
+        {
+            return Ok(new { message = "User is already verified." });
+        }
+
+        if (!OtpStore.TryGetValue(request.Email.Trim(), out var validOtp) || !validOtp.Equals(request.OtpCode.Trim(), StringComparison.Ordinal))
+        {
+            return BadRequest(new { message = "Invalid OTP code." });
+        }
+
+        student.IsVerified = true;
+        OtpStore.Remove(request.Email.Trim());
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "OTP verified successfully." });
     }
 
     [HttpPost("login")]
@@ -82,6 +151,7 @@ public class AuthController : ControllerBase
         return Ok(new
         {
             token,
+            message = student.IsVerified ? "Login successful." : "Login successful. Please verify your OTP for full account activation.",
             user = new
             {
                 studentId = student.StudentId,
@@ -293,7 +363,20 @@ public class AuthController : ControllerBase
         return Ok(new { emailTaken, usernameTaken });
     }
 }
+public class SendOtpRequest
+{
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+}
 
+public class VerifyOtpRequest
+{
+    [Required, EmailAddress]
+    public string Email { get; set; } = string.Empty;
+
+    [Required, MinLength(6), MaxLength(6)]
+    public string OtpCode { get; set; } = string.Empty;
+}
 public class RegisterRequest
 {
     [Required, MinLength(3)]

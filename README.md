@@ -1,36 +1,36 @@
 # Library & Exam Portal
 
-A full-stack university portal built with:
-- ASP.NET Core Web API (.NET 8)
-- React + Vite frontend
-- PostgreSQL database
-- JWT-based authentication and role-based access control
+A full-stack university system for library operations and exam seat allocation.
 
-This project supports:
-- Student registration and login
-- Default admin account startup seeding
-- Admin user management (create, edit, delete, list all users)
-- Librarian-only profile view
-- Library book management and issue/return tracking
-- Exam room, invigilator, and seat-allocation management
-- Role-restricted access across the app
+## Stack
+- ASP.NET Core Web API (.NET 8)
+- PostgreSQL + EF Core
+- React + Vite
+- JWT authentication + role-based access control
+- SignalR live notifications
+- GraphQL query layer
 
 ## Project structure
-
-- `LibraryExamAPI/` — ASP.NET Core backend API
-- `client/` — React frontend application
-- `package-lock.json` — root lockfile for the workspace
+- `LibraryExamAPI/` — backend API
+- `client/` — React frontend
+- `project.md` — phase-by-phase project brief
 
 ## Prerequisites
-
-Before running the app, make sure you have installed:
-
 - .NET 8 SDK
-- Node.js 18+ and npm
-- PostgreSQL 14+ / 18 compatible
-- A local PostgreSQL server running on `localhost:5432`
+- Node.js 18+
+- PostgreSQL running locally
+- pgAdmin installed if you want DB management UI
 
-## Database setup
+## Local database configuration
+The project is configured to use:
+- Host: `localhost`
+- Port: `5432`
+- Database: `lib_seat_campus`
+- Username: `postgres`
+- Password: `123`
+
+This is already set in:
+- `LibraryExamAPI/appsettings.Development.json`
 
 Create the database if it does not already exist:
 
@@ -38,88 +38,50 @@ Create the database if it does not already exist:
 CREATE DATABASE lib_seat_campus;
 ```
 
-The project is configured to use:
+## Default credentials
+Seeded accounts currently available in the app:
 
-- Host: `localhost`
-- Port: `5432`
-- Database: `lib_seat_campus`
-- Username: `postgres`
-- Password: `postgres`
-
-The connection string is stored in:
-- `LibraryExamAPI/appsettings.Development.json`
-
-The backend runs EF Core migrations automatically on startup and seeds the default admin account if needed.
-
-## Default admin account
-
-The app seeds a default administrator automatically:
-
+### Admin
 - Email: `admin@library.edu`
 - Password: `Admin@123`
 
-## Run the backend
+### Student
+- Email: `student1@library.edu`
+- Password: `Student@123`
 
-Open a terminal and run:
+### Librarian
+- Email: `librarian1@library.edu`
+- Password: `Lib@1234`
+
+## Run the backend
+From the workspace root:
 
 ```powershell
-cd /d E:\projects\lib_seat_campus\LibraryExamAPI
-"C:\Program Files\dotnet\dotnet.exe" run --project "E:\projects\lib_seat_campus\LibraryExamAPI\LibraryExamAPI.csproj" --urls http://localhost:5121
+cd .\LibraryExamAPI
+ dotnet run --urls http://localhost:5121
 ```
 
-The API will run at:
-- http://localhost:5121
-- Swagger UI is available in Development mode at:
-  - http://localhost:5121/swagger
+The API will be available at:
+- `http://localhost:5121`
+- Swagger UI: `http://localhost:5121/swagger`
 
 ## Run the frontend
-
-Open a second terminal and run:
+Open a second terminal:
 
 ```powershell
-cd /d E:\projects\lib_seat_campus\client
+cd .\client
+npm install
 npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
-The frontend will run at:
-- http://localhost:5173
+Frontend URL:
+- `http://localhost:5173`
 
-## App login flows
+## Important verification endpoints
+Backend health check:
 
-### Admin
-Use the seeded admin account:
-
-- Email: `admin@library.edu`
-- Password: `Admin@123`
-
-Admin can:
-- view all users
-- create users
-- edit users
-- delete users
-- access the full management dashboard
-
-### Librarian
-A librarian account can be created by the admin. Once logged in, a librarian sees only their own profile view and does not see the global user list.
-
-### Exam Coordinator
-An exam coordinator can create rooms, add invigilators, schedule exams, and generate seat allocations without viewing the global user admin list.
-
-### Student
-Students can register via the registration form and then log in with their own email and password.
-
-## Important notes
-
-- The backend uses JWT authentication.
-- CORS is enabled for the frontend on `http://localhost:5173` and `http://127.0.0.1:5173`.
-- HTTPS redirection is disabled in Development mode to make local testing easier.
-- If a stale backend is still running on port `5121`, stop it before starting a new instance.
-
-## Useful checks
-
-### Health endpoint
-```bash
-http://localhost:5121/api/ping
+```http
+GET http://localhost:5121/api/ping
 ```
 
 Expected response:
@@ -128,45 +90,79 @@ Expected response:
 { "status": "ok", "message": "LibraryExamAPI is running." }
 ```
 
-### Admin user list
-The protected endpoint is:
+## Roles supported
+- Admin
+- Librarian
+- Exam Coordinator
+- Student
 
-```bash
-http://localhost:5121/api/Auth/users
-```
-
-This requires a valid admin JWT token.
-
-## Troubleshooting
-
-### Backend does not start
-- Ensure PostgreSQL is running.
-- Confirm the database `lib_seat_campus` exists.
-- Check the username/password in `appsettings.Development.json`.
-
-### Frontend cannot connect to API
-- Make sure the backend is running on `http://localhost:5121`.
-- Confirm CORS is enabled for the frontend origin.
-
-### Registration fails or database schema mismatch happens
-- Make sure migrations are applied.
-- Restart the API after database changes.
-- Verify the local database schema matches the entity model.
-
-## Build verification
-
-The project was validated with:
+## Build and test verification
+These commands were run successfully:
 
 ```powershell
-cd /d E:\projects\lib_seat_campus\LibraryExamAPI
-"C:\Program Files\dotnet\dotnet.exe" build
+cd .\LibraryExamAPI
+dotnet build
+dotnet test --nologo --verbosity minimal
 ```
 
 ```powershell
-cd /d E:\projects\lib_seat_campus\client
+cd .\client
 npm run build
 ```
 
-## Summary
+## OTP email setup
+OTP delivery is wired through SMTP and falls back to console output if SMTP is not configured. To enable real email delivery, update:
 
-This project is structured for a university library/exam system with RBAC support. The default admin is seeded automatically, admin user management is enabled, library operations are available to admins and librarians, and exam coordination is available to admins and exam coordinators for rooms, staff, exams, and seat allocation planning.
+- `LibraryExamAPI/appsettings.Development.json`
+
+with a valid Gmail or SMTP provider configuration:
+
+```json
+"Smtp": {
+  "Host": "smtp.gmail.com",
+  "Port": "587",
+  "Username": "your-email@gmail.com",
+  "Password": "your-app-password",
+  "From": "noreply@library.edu",
+  "EnableSsl": "true"
+}
+```
+
+For Gmail, use an App Password instead of the normal account password.
+
+## Troubleshooting
+- If the API is locked by a stale process, stop the old `LibraryExamAPI` process before rebuilding.
+- If PostgreSQL rejects connection, confirm the server is running and the password is `123`.
+- If you changed model classes, run the app and allow EF Core migrations to apply automatically.
+
+## Final project status
+This project is now configured, integrated, and validated for local development.
+
+It includes:
+- JWT auth and RBAC for Admin, Librarian, Exam Coordinator, and Student roles
+- Library management with issue/return, fine calculation, reports, and recommendations
+- Exam seat allocation, room/invigilator management, manual override, and PDF export
+- SignalR-based live notifications
+- Dashboard analytics and GraphQL query exposure
+- OTP verification flow with SMTP-ready email delivery and console fallback
+- Audit logging and frontend dashboard polish
+
+## Final verification
+The following commands were executed successfully in the project environment:
+
+```powershell
+cd .\LibraryExamAPI.Tests
+dotnet test --nologo --verbosity minimal
+```
+
+Result: 9 passed, 0 failed.
+
+```powershell
+cd .\client
+npm run build
+```
+
+Result: Vite production build completed successfully.
+
+## Summary
+The backend and frontend both validate successfully, PostgreSQL is connected through the configured connection string, and the app is ready for local use in library and exam management workflows.

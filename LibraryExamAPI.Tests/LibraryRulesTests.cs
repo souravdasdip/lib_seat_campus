@@ -21,12 +21,42 @@ public class LibraryRulesTests
     }
 
     [Fact]
-    public void GenerateSeatPlan_ShouldAssignSeatsWithinCapacity()
+    public void GenerateSeatPlan_ShouldThrow_WhenSeatsPerBenchIsZeroOrNegative()
     {
-        var seats = LibraryRules.GenerateSeatPlan(20, 10);
+        Assert.Throws<ArgumentOutOfRangeException>(() => LibraryRules.GenerateSeatPlan(20, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => LibraryRules.GenerateSeatPlan(20, -5));
+    }
 
-        Assert.Equal(20, seats.Count);
+    [Fact]
+    public void GenerateSeatPlan_ShouldReturnEmpty_WhenStudentCountIsZero()
+    {
+        var seats = LibraryRules.GenerateSeatPlan(0, 10);
+
+        Assert.Empty(seats);
+    }
+
+    [Fact]
+    public void GenerateSeatPlan_ShouldInterleaveAcrossBenches()
+    {
+        var seats = LibraryRules.GenerateSeatPlan(23, 10);
+
+        Assert.Equal(23, seats.Count);
+        Assert.Equal(3, seats.GroupBy(s => s.BenchNo).Count());
+        Assert.Equal(1, seats[0].BenchNo);
+        Assert.Equal(1, seats[0].SeatNo);
+        Assert.Equal(2, seats[1].BenchNo);
+        Assert.Equal(1, seats[1].SeatNo);
+        Assert.Equal(3, seats[2].BenchNo);
+        Assert.Equal(1, seats[2].SeatNo);
         Assert.All(seats, seat => Assert.InRange(seat.SeatNo, 1, 10));
-        Assert.Equal(2, seats.GroupBy(s => s.BenchNo).Count());
+    }
+
+    [Fact]
+    public void GenerateOtpCode_ShouldReturnSixDigitCode()
+    {
+        var code = LibraryRules.GenerateOtpCode();
+
+        Assert.Equal(6, code.Length);
+        Assert.True(int.TryParse(code, out _));
     }
 }

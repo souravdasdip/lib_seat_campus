@@ -1,3 +1,33 @@
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg, #0f172a);
+  color: var(--text, #f8fafc);
+}
+
+body[data-theme='light'] {
+  --bg: #edf4ff;
+  --panel: rgba(255, 255, 255, 0.8);
+  --panel-strong: rgba(255, 255, 255, 0.95);
+  --text: #0f172a;
+  --muted: #475569;
+  --border: rgba(148, 163, 184, 0.3);
+  --accent: linear-gradient(135deg, #2563eb, #8b5cf6);
+  --input: rgba(255, 255, 255, 0.9);
+}
+
+body[data-theme='dark'], body:not([data-theme]) {
+  --bg: #0f172a;
+  --panel: rgba(15, 23, 42, 0.7);
+  --panel-strong: rgba(15, 23, 42, 0.85);
+  --text: #f8fafc;
+  --muted: #cbd5e1;
+  --border: rgba(148, 163, 184, 0.3);
+  --accent: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  --input: rgba(15, 23, 42, 0.85);
+}
+
 .auth-shell {
   min-height: 100vh;
   display: grid;
@@ -8,7 +38,7 @@
 
 .auth-card {
   width: min(980px, 100%);
-  background: rgba(15, 23, 42, 0.7);
+  background: var(--panel);
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 22px;
   padding: 32px;
@@ -56,9 +86,9 @@
 .secondary-button,
 .danger-button {
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(15, 23, 42, 0.85);
-  color: #f8fafc;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--text);
   padding: 12px 14px;
   font: inherit;
 }
@@ -172,8 +202,8 @@
 
 .table-panel {
   overflow: auto;
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px;
 }
@@ -226,14 +256,14 @@ th {
 }
 
 .stat-card {
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #dbeafe;
+  color: var(--text);
 }
 
 .stat-card span {
@@ -255,8 +285,8 @@ th {
 }
 
 .library-form {
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 18px;
 }
@@ -270,6 +300,72 @@ th {
   margin-bottom: 12px;
 }
 
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.chart-card {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+
+.bar-track {
+  height: 10px;
+  background: rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+}
+
+.mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.otp-panel {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 10px;
+}
+
+.export-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-decoration: none;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: white;
+  font-weight: 700;
+}
+
 .toolbar-actions {
   display: flex;
   gap: 8px;
@@ -279,11 +375,33 @@ th {
 
 .toolbar-actions input,
 .toolbar-actions select {
-  background: rgba(15, 23, 42, 0.8);
-  color: #f8fafc;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: var(--input);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
+}
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.media-card {
+  display: grid;
+  gap: 10px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.media-card iframe {
+  width: 100%;
+  min-height: 240px;
+  border: 0;
+  border-radius: 10px;
 }
 
 .profile-card > div {

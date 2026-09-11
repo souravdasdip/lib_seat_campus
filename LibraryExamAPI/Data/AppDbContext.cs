@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<Room> Rooms { get; set; }
     public DbSet<SeatAllocation> SeatAllocations { get; set; }
     public DbSet<Invigilator> Invigilators { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +31,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Room>().ToTable("Rooms");
         modelBuilder.Entity<SeatAllocation>().ToTable("SeatAllocations");
         modelBuilder.Entity<Invigilator>().ToTable("Invigilators");
+        modelBuilder.Entity<AuditLog>().ToTable("AuditLogs");
 
         modelBuilder.Entity<IssueRecord>()
             .HasOne(ir => ir.Book)

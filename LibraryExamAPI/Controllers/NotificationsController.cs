@@ -50,6 +50,49 @@ public class NotificationsController : ControllerBase
         });
     }
 
+    [HttpGet("analytics")]
+    [Authorize]
+    public async Task<IActionResult> GetAnalytics()
+    {
+        var students = await _db.Students.ToListAsync();
+        var books = await _db.Books.Include(b => b.IssueRecords).ToListAsync();
+        var exams = await _db.Exams.Include(e => e.SeatAllocations).ToListAsync();
+        var activeIssues = await _db.IssueRecords.Where(i => i.ReturnDate == null).ToListAsync();
+        var overdueIssues = activeIssues.Where(i => i.DueDate < DateTime.UtcNow).ToList();
+        var totalFine = activeIssues.Sum(i => i.FineAmount);
+
+        var byGenre = books
+            .GroupBy(b => b.Genre)
+            .OrderByDescending(g => g.Count())
+            .Select(g => new { label = g.Key, value = g.Count() })
+            .ToList();
+
+        var byDepartment = students
+            .GroupBy(s => s.Dept)
+            .OrderByDescending(g => g.Count())
+            .Select(g => new { label = g.Key, value = g.Count() })
+            .ToList();
+
+        var upcomingExams = exams
+            .OrderBy(e => e.ExamDate)
+            .Take(5)
+            .Select(e => new { course = e.Course, examDate = e.ExamDate, seatCount = e.SeatAllocations.Count })
+            .ToList();
+
+        return Ok(new
+        {
+            totalStudents = students.Count,
+            totalBooks = books.Count,
+            totalCopies = books.Sum(b => b.CopiesAvailable),
+            activeIssues = activeIssues.Count,
+            overdueIssues = overdueIssues.Count,
+            totalFine,
+            byGenre,
+            byDepartment,
+            upcomingExams
+        });
+    }
+
     [HttpPost("broadcast")]
     [Authorize]
     public async Task<IActionResult> Broadcast([FromBody] BroadcastRequest request)

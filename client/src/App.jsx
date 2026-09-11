@@ -43,7 +43,11 @@ function App() {
   const [view, setView] = useState('login');
   const [status, setStatus] = useState({ type: '', message: '' });
   const [availability, setAvailability] = useState({ email: null, username: null });
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [dashboardAnalytics, setDashboardAnalytics] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('libraryTheme') || 'dark');
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('libraryUser');
     return saved ? JSON.parse(saved) : null;
@@ -96,6 +100,18 @@ function App() {
     semester: '1',
     dept: '',
   });
+  const [overrideSeatForm, setOverrideSeatForm] = useState({
+    seatId: '',
+    roomId: '',
+    benchNo: '1',
+    seatNo: '1',
+    invigilatorId: '',
+  });
+
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    localStorage.setItem('libraryTheme', theme);
+  }, [theme]);
 
   useEffect(() => {
     if (currentUser) {
@@ -260,16 +276,27 @@ function App() {
   const loadNotifications = async () => {
     try {
       const token = localStorage.getItem('libraryToken');
-      const response = await fetch('http://localhost:5121/api/Notifications/summary', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load notifications');
+      const [summaryResponse, analyticsResponse] = await Promise.all([
+        fetch('http://localhost:5121/api/Notifications/summary', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('http://localhost:5121/api/Notifications/analytics', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const summaryData = await summaryResponse.json();
+      const analyticsData = await analyticsResponse.json();
+
+      if (!summaryResponse.ok || !analyticsResponse.ok) {
+        throw new Error('Failed to load dashboard data');
       }
-      setNotifications(data.notifications || []);
+
+      setNotifications(summaryData.notifications || []);
+      setDashboardAnalytics(analyticsData || null);
     } catch (error) {
       setNotifications([]);
+      setDashboardAnalytics(null);
     }
   };
 
@@ -387,14 +414,46 @@ function App() {
         throw new Error(data.message || 'Registration failed');
       }
 
-      setStatus({ type: 'success', message: 'Registration successful. Please sign in.' });
+      setOtpEmail(form.email);
+      setOtpCode('');
+      setStatus({
+        type: 'success',
+        message: `Registration successful. Use the OTP code ${data.otpCode} to verify your account before logging in.`,
+      });
       setForm(initialForm);
       setAvailability({ email: null, username: null });
-      setView('login');
     } catch (error) {
       setStatus({ type: 'error', message: error.message });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyOtp = async (event) => {
+    event.preventDefault();
+    if (!otpEmail || !otpCode.trim()) {
+      setStatus({ type: 'error', message: 'Enter the email and OTP code.' });
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5121/api/Auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail, otpCode: otpCode.trim() }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'OTP verification failed');
+      }
+
+      setStatus({ type: 'success', message: 'OTP verified successfully. You can now sign in.' });
+      setOtpEmail('');
+      setOtpCode('');
+      setView('login');
+    } catch (error) {
+      setStatus({ type: 'error', message: error.message });
     }
   };
 
@@ -417,7 +476,7 @@ function App() {
 
       localStorage.setItem('libraryToken', data.token);
       setCurrentUser(data.user);
-      setStatus({ type: 'success', message: `Welcome ${data.user.name}.` });
+      setStatus({ type: 'success', message: data.message || `Welcome ${data.user.name}.` });
       setView('logged-in');
     } catch (error) {
       setStatus({ type: 'error', message: error.message });
@@ -799,6 +858,42 @@ function App() {
     }
   };
 
+  const handleOverrideSeat = async (event) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setStatus({ type: '', message: '' });
+
+    try {
+      const token = localStorage.getItem('libraryToken');
+      const response = await fetch(`http://localhost:5121/api/Exam/seat-allocations/${Number(overrideSeatForm.seatId)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          roomId: Number(overrideSeatForm.roomId),
+          benchNo: Number(overrideSeatForm.benchNo),
+          seatNo: Number(overrideSeatForm.seatNo),
+          invigilatorId: overrideSeatForm.invigilatorId ? Number(overrideSeatForm.invigilatorId) : null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Seat override failed');
+      }
+
+      setStatus({ type: 'success', message: 'Seat assignment overridden successfully.' });
+      setOverrideSeatForm({ seatId: '', roomId: '', benchNo: '1', seatNo: '1', invigilatorId: '' });
+      await loadExamData();
+    } catch (error) {
+      setStatus({ type: 'error', message: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSendBroadcast = async (event) => {
     event.preventDefault();
     if (!notificationMessage.trim()) return;
@@ -939,84 +1034,103 @@ function App() {
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleSubmit} className="auth-form" noValidate>
-                <label>
-                  Full name
-                  <input value={form.name} onChange={(e) => updateField('name', e.target.value)} required />
-                </label>
-
-                <div className="split-fields">
+              <>
+                <form onSubmit={handleSubmit} className="auth-form" noValidate>
                   <label>
-                    Roll number
-                    <input value={form.rollNo} onChange={(e) => updateField('rollNo', e.target.value)} required />
-                    {availability.username !== null && (
-                      <small className={usernameAvailable ? 'ok' : 'warn'}>
-                        {usernameAvailable ? 'Roll number available' : 'Roll number already taken'}
+                    Full name
+                    <input value={form.name} onChange={(e) => updateField('name', e.target.value)} required />
+                  </label>
+
+                  <div className="split-fields">
+                    <label>
+                      Roll number
+                      <input value={form.rollNo} onChange={(e) => updateField('rollNo', e.target.value)} required />
+                      {availability.username !== null && (
+                        <small className={usernameAvailable ? 'ok' : 'warn'}>
+                          {usernameAvailable ? 'Roll number available' : 'Roll number already taken'}
+                        </small>
+                      )}
+                    </label>
+
+                    <label>
+                      Department
+                      <input value={form.dept} onChange={(e) => updateField('dept', e.target.value)} required />
+                    </label>
+                  </div>
+
+                  <div className="split-fields">
+                    <label>
+                      Semester
+                      <select value={form.semester} onChange={(e) => updateField('semester', e.target.value)}>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      Role
+                      <select value={form.role} onChange={(e) => updateField('role', e.target.value)}>
+                        <option value="Student">Student</option>
+                        <option value="Librarian">Librarian</option>
+                        <option value="Exam Coordinator">Exam Coordinator</option>
+                        <option value="Admin">Admin</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <label>
+                    Email address
+                    <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} required />
+                    {availability.email !== null && (
+                      <small className={emailAvailable ? 'ok' : 'warn'}>
+                        {emailAvailable ? 'Email available' : 'Email already registered'}
                       </small>
                     )}
                   </label>
 
                   <label>
-                    Department
-                    <input value={form.dept} onChange={(e) => updateField('dept', e.target.value)} required />
-                  </label>
-                </div>
-
-                <div className="split-fields">
-                  <label>
-                    Semester
-                    <select value={form.semester} onChange={(e) => updateField('semester', e.target.value)}>
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
+                    Password
+                    <input type="password" value={form.password} onChange={(e) => updateField('password', e.target.value)} required />
                   </label>
 
-                  <label>
-                    Role
-                    <select value={form.role} onChange={(e) => updateField('role', e.target.value)}>
-                      <option value="Student">Student</option>
-                      <option value="Librarian">Librarian</option>
-                      <option value="Exam Coordinator">Exam Coordinator</option>
-                      <option value="Admin">Admin</option>
-                    </select>
-                  </label>
-                </div>
-
-                <label>
-                  Email address
-                  <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} required />
-                  {availability.email !== null && (
-                    <small className={emailAvailable ? 'ok' : 'warn'}>
-                      {emailAvailable ? 'Email available' : 'Email already registered'}
-                    </small>
-                  )}
-                </label>
-
-                <label>
-                  Password
-                  <input type="password" value={form.password} onChange={(e) => updateField('password', e.target.value)} required />
-                </label>
-
-                <div className="password-meter" aria-live="polite">
-                  <div className="meter-bar">
-                    <span style={{ width: `${passwordStrength.percent}%` }} />
+                  <div className="password-meter" aria-live="polite">
+                    <div className="meter-bar">
+                      <span style={{ width: `${passwordStrength.percent}%` }} />
+                    </div>
+                    <small>{passwordStrength.label}</small>
                   </div>
-                  <small>{passwordStrength.label}</small>
-                </div>
 
-                <ul className="password-rules">
-                  {passwordChecks.map(({ label, test }) => (
-                    <li key={label} className={test(form.password) ? 'valid' : ''}>{label}</li>
-                  ))}
-                </ul>
+                  <ul className="password-rules">
+                    {passwordChecks.map(({ label, test }) => (
+                      <li key={label} className={test(form.password) ? 'valid' : ''}>{label}</li>
+                    ))}
+                  </ul>
 
-                {status.message && <div className={`message ${status.type}`}>{status.message}</div>}
+                  {status.message && <div className={`message ${status.type}`}>{status.message}</div>}
 
-                <button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Creating account...' : 'Create account'}
-                </button>
-              </form>
+                  <button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating account...' : 'Create account'}
+                  </button>
+                </form>
+
+                {otpEmail && (
+                  <div className="otp-panel">
+                    <h3>Verify OTP</h3>
+                    <form onSubmit={handleVerifyOtp} className="auth-form" noValidate>
+                      <label>
+                        Email
+                        <input value={otpEmail} onChange={(e) => setOtpEmail(e.target.value)} type="email" required />
+                      </label>
+                      <label>
+                        6-digit OTP
+                        <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} maxLength={6} placeholder="Enter OTP" required />
+                      </label>
+                      <button type="submit" className="secondary-button">Verify OTP</button>
+                    </form>
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : (
@@ -1026,7 +1140,12 @@ function App() {
                 <strong>{currentUser.name}</strong>
                 <span>{currentUser.role}</span>
               </div>
-              <button type="button" className="logout-button" onClick={logout}>Logout</button>
+              <div className="toolbar-actions">
+                <button type="button" className="secondary-button" onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}>
+                  {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                </button>
+                <button type="button" className="logout-button" onClick={logout}>Logout</button>
+              </div>
             </div>
 
             {isLibrarian && (
@@ -1041,6 +1160,41 @@ function App() {
                   <div><label>Roll number</label><strong>{currentUser.rollNo || 'N/A'}</strong></div>
                 </div>
                 <p className="restricted-note">Librarian view is limited to personal perspective only; no global user list is shown.</p>
+              </div>
+            )}
+
+            {dashboardAnalytics && (isAdmin || isLibrarian || isExamCoordinator) && (
+              <div className="table-panel">
+                <h2>Dashboard analytics</h2>
+                <div className="stats-grid">
+                  <div className="stat-card"><span>Total students</span><strong>{dashboardAnalytics.totalStudents}</strong></div>
+                  <div className="stat-card"><span>Total books</span><strong>{dashboardAnalytics.totalBooks}</strong></div>
+                  <div className="stat-card"><span>Active issues</span><strong>{dashboardAnalytics.activeIssues}</strong></div>
+                  <div className="stat-card"><span>Overdue</span><strong>{dashboardAnalytics.overdueIssues}</strong></div>
+                </div>
+
+                <div className="chart-grid">
+                  <div className="chart-card">
+                    <h3>Genre mix</h3>
+                    {dashboardAnalytics.byGenre?.map((item) => (
+                      <div className="bar-row" key={item.label}>
+                        <span>{item.label}</span>
+                        <div className="bar-track"><span style={{ width: `${Math.max((item.value / Math.max(...(dashboardAnalytics.byGenre.map((g) => g.value)), 1)) * 100, 8)}%` }} /></div>
+                        <strong>{item.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="chart-card">
+                    <h3>Upcoming exams</h3>
+                    {dashboardAnalytics.upcomingExams?.map((exam) => (
+                      <div className="mini-list" key={`${exam.course}-${exam.examDate}`}>
+                        <strong>{exam.course}</strong>
+                        <span>{new Date(exam.examDate).toLocaleDateString()} · {exam.seatCount} seats</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1139,6 +1293,31 @@ function App() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {(isAdmin || isLibrarian || isExamCoordinator) && (
+              <div className="table-panel">
+                <h2>Campus resources</h2>
+                <div className="media-grid">
+                  <div className="media-card">
+                    <h3>Library location</h3>
+                    <iframe
+                      title="Library map"
+                      src="https://www.openstreetmap.org/export/embed.html?bbox=90.398%2C23.752%2C90.425%2C23.779&layer=mapnik"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="media-card">
+                    <h3>Orientation video</h3>
+                    <iframe
+                      title="Orientation video"
+                      src="https://www.youtube.com/embed/2Vv-BfVoR4g?si=At-8TU1cYtVz7nVn"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -1586,6 +1765,55 @@ function App() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+
+                    <div className="library-grid">
+                      <form onSubmit={handleOverrideSeat} className="auth-form library-form" noValidate>
+                        <h2>Manual seat override</h2>
+                        <label>
+                          Seat ID
+                          <input type="number" min="1" value={overrideSeatForm.seatId} onChange={(e) => setOverrideSeatForm((current) => ({ ...current, seatId: e.target.value }))} required />
+                        </label>
+                        <div className="split-fields">
+                          <label>
+                            Room ID
+                            <input type="number" min="1" value={overrideSeatForm.roomId} onChange={(e) => setOverrideSeatForm((current) => ({ ...current, roomId: e.target.value }))} required />
+                          </label>
+                          <label>
+                            Invigilator ID
+                            <input type="number" min="1" value={overrideSeatForm.invigilatorId} onChange={(e) => setOverrideSeatForm((current) => ({ ...current, invigilatorId: e.target.value }))} />
+                          </label>
+                        </div>
+                        <div className="split-fields">
+                          <label>
+                            Bench No
+                            <input type="number" min="1" value={overrideSeatForm.benchNo} onChange={(e) => setOverrideSeatForm((current) => ({ ...current, benchNo: e.target.value }))} required />
+                          </label>
+                          <label>
+                            Seat No
+                            <input type="number" min="1" value={overrideSeatForm.seatNo} onChange={(e) => setOverrideSeatForm((current) => ({ ...current, seatNo: e.target.value }))} required />
+                          </label>
+                        </div>
+                        <button type="submit" disabled={isSubmitting}>Override seat</button>
+                      </form>
+
+                      <div className="auth-form library-form">
+                        <h2>PDF export</h2>
+                        <label>
+                          Select exam
+                          <select value={allocationForm.examId} onChange={(e) => setAllocationForm((current) => ({ ...current, examId: e.target.value }))}>
+                            <option value="">Select exam</option>
+                            {exams.map((exam) => (
+                              <option key={exam.examId} value={exam.examId}>{exam.course}</option>
+                            ))}
+                          </select>
+                        </label>
+                        {allocationForm.examId && (
+                          <a href={`http://localhost:5121/api/Exam/seat-charts/${allocationForm.examId}/pdf`} target="_blank" rel="noreferrer" className="export-link">
+                            Download seat chart PDF
+                          </a>
+                        )}
+                      </div>
                     </div>
 
                     <div className="table-panel">

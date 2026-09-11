@@ -1,9 +1,12 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using LibraryExamAPI.Data;
+using LibraryExamAPI.Hubs;
 using LibraryExamAPI.Models;
+using LibraryExamAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace LibraryExamAPI.Controllers;
@@ -13,10 +16,14 @@ namespace LibraryExamAPI.Controllers;
 public class LibraryController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly RecommendationService _recommendationService;
+    private readonly IHubContext<NotificationHub> _hub;
 
-    public LibraryController(AppDbContext db)
+    public LibraryController(AppDbContext db, RecommendationService recommendationService, IHubContext<NotificationHub> hub)
     {
         _db = db;
+        _recommendationService = recommendationService;
+        _hub = hub;
     }
 
     [HttpGet("books")]
@@ -314,62 +321,12 @@ public class LibraryController : ControllerBase
             ? await _db.Students.FirstOrDefaultAsync(s => s.Contact == email)
             : null;
 
-        var borrowedGenreQuery = _db.IssueRecords
-            .Include(i => i.Book)
-            .Where(i => student == null || i.StudentId == student.StudentId)
-            .GroupBy(i => i.Book.Genre)
-            .Select(g => new { Genre = g.Key, Count = g.Count() })
-            .OrderByDescending(g => g.Count)
-            .Take(2)
-            .ToList();
-
-        var preferredGenres = borrowedGenreQuery.Select(g => g.Genre).ToList();
-
-        var booksQuery = _db.Books.AsQueryable();
-
-        if (preferredGenres.Count > 0)
-        {
-            booksQuery = booksQuery.Where(b => preferredGenres.Contains(b.Genre));
-        }
-
-        var books = await booksQuery
-            .OrderByDescending(b => b.CopiesAvailable)
-            .ThenBy(b => b.Title)
-            .Take(5)
-            .Select(b => new
-            {
-                bookId = b.BookId,
-                title = b.Title,
-                author = b.Author,
-                genre = b.Genre,
-                copiesAvailable = b.CopiesAvailable
-            })
-            .ToListAsync();
-
-        if (books.Count == 0)
-        {
-            books = await _db.Books
-                .OrderBy(b => b.Title)
-                .Take(5)
-                .Select(b => new
-                {
-                    bookId = b.BookId,
-                    title = b.Title,
-                    author = b.Author,
-                    genre = b.Genre,
-                    copiesAvailable = b.CopiesAvailable
-                })
-                .ToListAsync();
-        }
-
-        var basedOn = preferredGenres.Count > 0
-            ? preferredGenres.Cast<object>().ToList()
-            : new List<object> { "general circulation" };
+        var recommendationResult = await _recommendationService.GetRecommendationsAsync(_db, student?.StudentId);
 
         return Ok(new
         {
-            recommendations = books,
-            basedOn
+            recommendations = recommendationResult.Recommendations,
+            basedOn = recommendationResult.BasedOn
         });
     }
 
@@ -460,6 +417,14 @@ public class LibraryController : ControllerBase
         _db.Comments.Add(comment);
         await _db.SaveChangesAsync();
 
+        await _hub.Clients.All.SendAsync("ReceiveNotification", new
+        {
+            type = "comment",
+            bookId = id,
+            message = $"{student.Name} commented on '{book.Title}'.",
+            createdAt = DateTime.UtcNow
+        });
+
         return Ok(new { message = "Comment added successfully.", commentId = comment.CommentId });
     }
 
@@ -514,6 +479,14 @@ public class LibraryController : ControllerBase
 
         _db.Reactions.Add(reaction);
         await _db.SaveChangesAsync();
+
+        await _hub.Clients.All.SendAsync("ReceiveNotification", new
+        {
+            type = "reaction",
+            bookId = id,
+            message = $"{student.Name} {request.Type.Trim()}d '{book.Title}'.",
+            createdAt = DateTime.UtcNow
+        });
 
         return Ok(new { message = "Reaction added successfully." });
     }
@@ -571,6 +544,15 @@ public class LibraryController : ControllerBase
         _db.IssueRecords.Add(issue);
         book.CopiesAvailable -= 1;
 
+        await _db.AuditLogs.AddAsync(new AuditLog
+        {
+            Action = "IssueBook",
+            EntityType = "IssueRecord",
+            EntityId = 0,
+            PerformedBy = User.Identity?.Name ?? "system",
+            Details = $"Issued '{book.Title}' to student id {request.StudentId}."
+        });
+
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "Book issued successfully.", issueId = issue.IssueId });
@@ -597,6 +579,15 @@ public class LibraryController : ControllerBase
         issue.ReturnDate = DateTime.UtcNow;
         issue.FineAmount = CalculateFine(issue);
         issue.Book.CopiesAvailable += 1;
+
+        await _db.AuditLogs.AddAsync(new AuditLog
+        {
+            Action = "ReturnBook",
+            EntityType = "IssueRecord",
+            EntityId = issue.IssueId,
+            PerformedBy = User.Identity?.Name ?? "system",
+            Details = $"Returned book '{issue.Book.Title}' and applied fine {issue.FineAmount}."
+        });
 
         await _db.SaveChangesAsync();
 

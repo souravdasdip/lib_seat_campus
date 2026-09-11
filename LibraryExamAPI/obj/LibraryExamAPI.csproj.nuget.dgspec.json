@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "E:\\projects\\lib_seat_campus\\LibraryExamAPI\\LibraryExamAPI.csproj": {}
+    "F:\\✅\\prionti\\lib_seat_campus\\LibraryExamAPI\\LibraryExamAPI.csproj": {}
   },
   "projects": {
-    "E:\\projects\\lib_seat_campus\\LibraryExamAPI\\LibraryExamAPI.csproj": {
+    "F:\\✅\\prionti\\lib_seat_campus\\LibraryExamAPI\\LibraryExamAPI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "E:\\projects\\lib_seat_campus\\LibraryExamAPI\\LibraryExamAPI.csproj",
+        "projectUniqueName": "F:\\✅\\prionti\\lib_seat_campus\\LibraryExamAPI\\LibraryExamAPI.csproj",
         "projectName": "LibraryExamAPI",
-        "projectPath": "E:\\projects\\lib_seat_campus\\LibraryExamAPI\\LibraryExamAPI.csproj",
-        "packagesPath": "C:\\Users\\XPONENT\\.nuget\\packages\\",
-        "outputPath": "E:\\projects\\lib_seat_campus\\LibraryExamAPI\\obj\\",
+        "projectPath": "F:\\✅\\prionti\\lib_seat_campus\\LibraryExamAPI\\LibraryExamAPI.csproj",
+        "packagesPath": "C:\\Users\\dasso\\.nuget\\packages\\",
+        "outputPath": "F:\\✅\\prionti\\lib_seat_campus\\LibraryExamAPI\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\XPONENT\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\dasso\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
@@ -68,6 +68,10 @@
             "Npgsql.EntityFrameworkCore.PostgreSQL": {
               "target": "Package",
               "version": "[8.0.11, )"
+            },
+            "QuestPDF": {
+              "target": "Package",
+              "version": "[2025.1.5, )"
             },
             "Swashbuckle.AspNetCore": {
               "target": "Package",

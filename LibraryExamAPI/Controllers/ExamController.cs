@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using LibraryExamAPI.Data;
 using LibraryExamAPI.Models;
+using LibraryExamAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -172,6 +173,42 @@ public class ExamController : ControllerBase
         return Ok(allocations);
     }
 
+    [HttpGet("seat-charts")]
+    [Authorize(Roles = "Admin,Exam Coordinator,Librarian")]
+    public async Task<IActionResult> GetSeatCharts([FromQuery] int? examId = null)
+    {
+        var rooms = await _db.Rooms
+            .Include(r => r.SeatAllocations)
+            .ThenInclude(sa => sa.Student)
+            .OrderBy(r => r.RoomNo)
+            .ToListAsync();
+
+        var filteredRooms = rooms
+            .Select(r => new
+            {
+                roomId = r.RoomId,
+                roomNo = r.RoomNo,
+                capacity = r.Capacity,
+                benchLayout = r.BenchLayout,
+                students = r.SeatAllocations
+                    .Where(sa => !examId.HasValue || sa.ExamId == examId.Value)
+                    .OrderBy(sa => sa.BenchNo)
+                    .ThenBy(sa => sa.SeatNo)
+                    .Select(sa => new
+                    {
+                        studentId = sa.StudentId,
+                        studentName = sa.Student.Name,
+                        rollNo = sa.Student.RollNo,
+                        benchNo = sa.BenchNo,
+                        seatNo = sa.SeatNo
+                    })
+                    .ToList()
+            })
+            .ToList();
+
+        return Ok(filteredRooms);
+    }
+
     [HttpGet("my-allocations")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> GetMyAllocations()
@@ -210,6 +247,88 @@ public class ExamController : ControllerBase
         return Ok(allocations);
     }
 
+    [HttpGet("seat-charts/{examId:int}/pdf")]
+    [Authorize(Roles = "Admin,Exam Coordinator,Librarian")]
+    public async Task<IActionResult> ExportSeatChartPdf(int examId)
+    {
+        var exam = await _db.Exams.FirstOrDefaultAsync(e => e.ExamId == examId);
+        if (exam == null)
+        {
+            return NotFound(new { message = "Exam not found." });
+        }
+
+        var rooms = await _db.Rooms
+            .Include(r => r.SeatAllocations)
+            .ThenInclude(sa => sa.Student)
+            .Where(r => r.SeatAllocations.Any(sa => sa.ExamId == examId))
+            .OrderBy(r => r.RoomNo)
+            .ToListAsync();
+
+        if (rooms.Count == 0)
+        {
+            return NotFound(new { message = "No seat chart available for this exam." });
+        }
+
+        var pdfBytes = rooms.SelectMany(room => room.SeatAllocations
+            .Where(sa => sa.ExamId == examId)
+            .OrderBy(sa => sa.BenchNo)
+            .ThenBy(sa => sa.SeatNo)
+            .Select(sa => new
+            {
+                studentName = sa.Student.Name,
+                benchNo = sa.BenchNo,
+                seatNo = sa.SeatNo
+            }))
+            .ToList();
+
+        var roomName = string.Join(", ", rooms.Select(r => r.RoomNo));
+        var bytes = PdfExportService.GenerateSeatChartPdf(roomName, pdfBytes);
+        return File(bytes, "application/pdf", $"seat-chart-{examId}.pdf");
+    }
+
+    [HttpPut("seat-allocations/{seatId:int}")]
+    [Authorize(Roles = "Admin,Exam Coordinator")]
+    public async Task<IActionResult> OverrideSeatAssignment(int seatId, [FromBody] OverrideSeatRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var allocation = await _db.SeatAllocations
+            .Include(sa => sa.Student)
+            .Include(sa => sa.Room)
+            .FirstOrDefaultAsync(sa => sa.SeatId == seatId);
+
+        if (allocation == null)
+        {
+            return NotFound(new { message = "Seat allocation not found." });
+        }
+
+        var roomExists = await _db.Rooms.AnyAsync(r => r.RoomId == request.RoomId);
+        if (!roomExists)
+        {
+            return BadRequest(new { message = "Selected room does not exist." });
+        }
+
+        allocation.RoomId = request.RoomId;
+        allocation.BenchNo = request.BenchNo;
+        allocation.SeatNo = request.SeatNo;
+        allocation.InvigilatorId = request.InvigilatorId;
+
+        await _db.AuditLogs.AddAsync(new AuditLog
+        {
+            Action = "OverrideSeatAssignment",
+            EntityType = "SeatAllocation",
+            EntityId = allocation.SeatId,
+            PerformedBy = User.Identity?.Name ?? "system",
+            Details = $"Updated allocation for {allocation.Student.Name} in {allocation.Room.RoomNo} to bench {request.BenchNo}, seat {request.SeatNo}."
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Seat assignment overridden successfully." });
+    }
+
     [HttpPost("allocate")]
     [Authorize(Roles = "Admin,Exam Coordinator")]
     public async Task<IActionResult> AllocateSeats([FromBody] AllocateSeatsRequest request)
@@ -225,10 +344,25 @@ public class ExamController : ControllerBase
             return NotFound(new { message = "Exam not found." });
         }
 
-        var room = await _db.Rooms.FirstOrDefaultAsync(r => r.RoomId == request.RoomId);
-        if (room == null)
+        var roomIds = request.RoomIds?.Where(id => id > 0).Distinct().ToList();
+        if ((roomIds == null || roomIds.Count == 0) && request.RoomId > 0)
         {
-            return NotFound(new { message = "Room not found." });
+            roomIds = new List<int> { request.RoomId };
+        }
+
+        if (roomIds == null || roomIds.Count == 0)
+        {
+            return BadRequest(new { message = "A room selection is required for seat allocation." });
+        }
+
+        var rooms = await _db.Rooms
+            .Where(r => roomIds.Contains(r.RoomId))
+            .OrderBy(r => r.RoomNo)
+            .ToListAsync();
+
+        if (rooms.Count == 0)
+        {
+            return NotFound(new { message = "One or more rooms were not found." });
         }
 
         var studentQuery = _db.Students.AsQueryable();
@@ -247,7 +381,7 @@ public class ExamController : ControllerBase
         }
 
         var students = await studentQuery
-            .OrderBy(s => s.Name)
+            .OrderBy(s => s.RollNo)
             .Select(s => s.StudentId)
             .ToListAsync();
 
@@ -256,28 +390,51 @@ public class ExamController : ControllerBase
             return BadRequest(new { message = "No eligible students found for allocation." });
         }
 
-        var limit = Math.Min(room.Capacity, students.Count);
-        var selectedIds = students.Take(limit).ToList();
+        var totalCapacity = rooms.Sum(r => r.Capacity);
+        var selectedIds = students.Take(totalCapacity).ToList();
 
         var existing = _db.SeatAllocations.Where(sa => sa.ExamId == request.ExamId);
         _db.SeatAllocations.RemoveRange(existing);
 
-        var allocations = new List<SeatAllocation>();
-        for (var i = 0; i < selectedIds.Count; i++)
+        var roomAssignments = new List<(int RoomId, List<int> Students)>();
+        var roomIndex = 0;
+        foreach (var studentId in selectedIds)
         {
-            var studentId = selectedIds[i];
-            var benchNo = (i / 10) + 1;
-            var seatNo = (i % 10) + 1;
-
-            allocations.Add(new SeatAllocation
+            if (roomAssignments.Count <= roomIndex || roomAssignments[roomIndex].RoomId != rooms[roomIndex % rooms.Count].RoomId)
             {
-                ExamId = request.ExamId,
-                RoomId = request.RoomId,
-                StudentId = studentId,
-                BenchNo = benchNo,
-                SeatNo = seatNo,
-                InvigilatorId = request.InvigilatorId
-            });
+                var roomId = rooms[roomIndex % rooms.Count].RoomId;
+                roomAssignments.Add((roomId, new List<int>()));
+            }
+
+            var assignmentIndex = roomAssignments.Count - 1;
+            roomAssignments[assignmentIndex].Students.Add(studentId);
+            roomIndex = (roomIndex + 1) % rooms.Count;
+        }
+
+        var allocations = new List<SeatAllocation>();
+        foreach (var assignment in roomAssignments)
+        {
+            if (assignment.Students.Count == 0)
+            {
+                continue;
+            }
+
+            var room = rooms.First(r => r.RoomId == assignment.RoomId);
+            var seatPlan = LibraryRules.GenerateSeatPlan(assignment.Students.Count, 10);
+
+            for (var i = 0; i < assignment.Students.Count; i++)
+            {
+                var seat = seatPlan[i];
+                allocations.Add(new SeatAllocation
+                {
+                    ExamId = request.ExamId,
+                    RoomId = room.RoomId,
+                    StudentId = assignment.Students[i],
+                    BenchNo = seat.BenchNo,
+                    SeatNo = seat.SeatNo,
+                    InvigilatorId = request.InvigilatorId
+                });
+            }
         }
 
         _db.SeatAllocations.AddRange(allocations);
@@ -287,7 +444,7 @@ public class ExamController : ControllerBase
         {
             message = "Seat allocation generated successfully.",
             allocatedCount = allocations.Count,
-            roomNo = room.RoomNo,
+            rooms = rooms.Select(r => r.RoomNo).ToList(),
             examId = request.ExamId
         });
     }
@@ -333,14 +490,29 @@ public class AllocateSeatsRequest
     [Required]
     public int ExamId { get; set; }
 
-    [Required]
     public int RoomId { get; set; }
+
+    public List<int>? RoomIds { get; set; }
 
     public int Semester { get; set; }
 
     public string? Dept { get; set; }
 
     public List<int>? StudentIds { get; set; }
+
+    public int? InvigilatorId { get; set; }
+}
+
+public class OverrideSeatRequest
+{
+    [Required]
+    public int RoomId { get; set; }
+
+    [Range(1, 500)]
+    public int BenchNo { get; set; }
+
+    [Range(1, 500)]
+    public int SeatNo { get; set; }
 
     public int? InvigilatorId { get; set; }
 }
