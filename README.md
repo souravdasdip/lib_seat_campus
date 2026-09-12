@@ -23,7 +23,7 @@ A full-stack university system for library operations and exam seat allocation.
 
 ## Local database configuration
 The project is configured to use:
-- Host: `localhost`
+- Host: `127.0.0.1` (IPv4 loopback to avoid Windows PostgreSQL IPv6 auth issues)
 - Port: `5432`
 - Database: `lib_seat_campus`
 - Username: `postgres`
@@ -31,6 +31,12 @@ The project is configured to use:
 
 This is already set in:
 - `LibraryExamAPI/appsettings.Development.json`
+
+If PostgreSQL still rejects the connection on Windows, ensure your local `pg_hba.conf` includes an IPv4 rule such as:
+
+```conf
+host    all             all             127.0.0.1/32            md5
+```
 
 Create the database if it does not already exist:
 

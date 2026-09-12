@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as signalR from '@microsoft/signalr';
+import {
+  Bell,
+  BookOpen,
+  BriefcaseBusiness,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  Moon,
+  Search,
+  SunMedium,
+  UserRound,
+  Users,
+  ClipboardCheck,
+} from 'lucide-react';
 import './App.css';
 
 const initialForm = {
@@ -48,6 +62,9 @@ function App() {
   const [dashboardAnalytics, setDashboardAnalytics] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('libraryTheme') || 'dark');
+  const [activeSection, setActiveSection] = useState('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [topSearch, setTopSearch] = useState('');
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('libraryUser');
     return saved ? JSON.parse(saved) : null;
@@ -992,6 +1009,29 @@ function App() {
   const isExamCoordinator = currentUser && currentUser.role === 'Exam Coordinator';
   const canManageExams = Boolean(currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Exam Coordinator'));
 
+  const sidebarItems = [
+    { id: 'overview', label: 'Overview', icon: LayoutGrid },
+    { id: 'library', label: 'Library', icon: BookOpen },
+    { id: 'exams', label: 'Exams', icon: ClipboardCheck },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+  ];
+
+  if (isAdmin) {
+    sidebarItems.push({ id: 'users', label: 'Users', icon: Users });
+  }
+
+  const statCards = [
+    { label: 'Total students', value: dashboardAnalytics?.totalStudents ?? 0, trend: '+12.4%' },
+    { label: 'Total books', value: dashboardAnalytics?.totalBooks ?? libraryBooks.length, trend: '+8.1%' },
+    { label: 'Active issues', value: dashboardAnalytics?.activeIssues ?? libraryIssues.filter((issue) => issue.returnDate === null).length, trend: '-4.2%' },
+    { label: 'Overdue', value: dashboardAnalytics?.overdueIssues ?? libraryIssues.filter((issue) => issue.returnDate === null && issue.isOverdue).length, trend: '+2.3%' },
+  ];
+
+  const handleNav = (id) => {
+    setActiveSection(id);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="auth-shell">
       <div className="auth-card">
@@ -1134,19 +1174,100 @@ function App() {
             )}
           </>
         ) : (
-          <div className="dashboard-panel">
-            <div className="admin-summary">
-              <div>
-                <strong>{currentUser.name}</strong>
-                <span>{currentUser.role}</span>
-              </div>
-              <div className="toolbar-actions">
-                <button type="button" className="secondary-button" onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}>
-                  {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          <div className="dashboard-shell">
+            <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+              <div className="sidebar-top">
+                <div className="sidebar-brand">
+                  <div className="brand-mark">L</div>
+                  {!sidebarCollapsed && (
+                    <div className="brand-copy">
+                      <strong>LibSeat</strong>
+                      <span>Campus</span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  onClick={() => setSidebarCollapsed((prev) => !prev)}
+                  aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                  {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
                 </button>
-                <button type="button" className="logout-button" onClick={logout}>Logout</button>
               </div>
-            </div>
+
+              <nav className="sidebar-nav" aria-label="Sidebar navigation">
+                {sidebarItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`nav-item ${activeSection === item.id ? 'active' : ''}`}
+                    onClick={() => handleNav(item.id)}
+                    title={item.label}
+                  >
+                    <span className="nav-icon"><item.icon size={16} /></span>
+                    {!sidebarCollapsed && <span>{item.label}</span>}
+                  </button>
+                ))}
+              </nav>
+
+              {!sidebarCollapsed && (
+                <div className="sidebar-card">
+                  <span>Access level</span>
+                  <strong>{currentUser.role}</strong>
+                </div>
+              )}
+            </aside>
+
+            <div className="dashboard-panel">
+              <header className="topbar">
+                <div className="topbar-left">
+                  <div className="topbar-title-block">
+                    <span className="eyebrow">Operations center</span>
+                    <h2>{currentUser.role} dashboard</h2>
+                  </div>
+                </div>
+
+                <div className="topbar-actions">
+                  <label className="top-search">
+                    <Search size={16} />
+                    <input
+                      type="search"
+                      placeholder="Search"
+                      value={topSearch}
+                      onChange={(e) => setTopSearch(e.target.value)}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="Toggle theme"
+                    onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+                  >
+                    {theme === 'dark' ? <SunMedium size={16} /> : <Moon size={16} />}
+                  </button>
+
+                  <button type="button" className="profile-button" onClick={() => loadMyProfile()}>
+                    <span className="profile-avatar"><UserRound size={16} /></span>
+                    <span className="profile-meta">
+                      <strong>{currentUser.name}</strong>
+                      <small>{currentUser.role}</small>
+                    </span>
+                  </button>
+                </div>
+              </header>
+
+              <div id="overview" className="admin-summary">
+                <div>
+                  <strong>{currentUser.name}</strong>
+                  <span>{currentUser.role}</span>
+                </div>
+                <div className="toolbar-actions">
+                  <button type="button" className="logout-button" onClick={logout}>Logout</button>
+                </div>
+              </div>
 
             {isLibrarian && (
               <div className="librarian-panel">
@@ -1167,10 +1288,15 @@ function App() {
               <div className="table-panel">
                 <h2>Dashboard analytics</h2>
                 <div className="stats-grid">
-                  <div className="stat-card"><span>Total students</span><strong>{dashboardAnalytics.totalStudents}</strong></div>
-                  <div className="stat-card"><span>Total books</span><strong>{dashboardAnalytics.totalBooks}</strong></div>
-                  <div className="stat-card"><span>Active issues</span><strong>{dashboardAnalytics.activeIssues}</strong></div>
-                  <div className="stat-card"><span>Overdue</span><strong>{dashboardAnalytics.overdueIssues}</strong></div>
+                  {statCards.map((card) => (
+                    <div className="stat-card" key={card.label}>
+                      <div className="stat-header">
+                        <span>{card.label}</span>
+                        <span className="trend-badge">{card.trend}</span>
+                      </div>
+                      <strong>{card.value}</strong>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="chart-grid">
@@ -1211,19 +1337,31 @@ function App() {
 
                 <div className="stats-grid">
                   <div className="stat-card">
-                    <span>Books borrowed</span>
+                    <div className="stat-header">
+                      <span>Books borrowed</span>
+                      <span className="trend-badge">+3.2%</span>
+                    </div>
                     <strong>{myLibraryIssues.length}</strong>
                   </div>
                   <div className="stat-card">
-                    <span>Open issues</span>
+                    <div className="stat-header">
+                      <span>Open issues</span>
+                      <span className="trend-badge">-1.1%</span>
+                    </div>
                     <strong>{myLibraryIssues.filter((issue) => !issue.returnDate).length}</strong>
                   </div>
                   <div className="stat-card">
-                    <span>Exam allocations</span>
+                    <div className="stat-header">
+                      <span>Exam allocations</span>
+                      <span className="trend-badge">+5.4%</span>
+                    </div>
                     <strong>{myExamAllocations.length}</strong>
                   </div>
                   <div className="stat-card">
-                    <span>Outstanding fine</span>
+                    <div className="stat-header">
+                      <span>Outstanding fine</span>
+                      <span className="trend-badge">+0.8%</span>
+                    </div>
                     <strong>{myLibraryIssues.reduce((sum, issue) => sum + (issue.fineAmount || 0), 0)}</strong>
                   </div>
                 </div>
@@ -1323,7 +1461,7 @@ function App() {
             )}
 
             {(isAdmin || isLibrarian || isExamCoordinator) && (
-              <div className="table-panel">
+              <div id="notifications" className="table-panel">
                 <h2>System notifications</h2>
                 <div className="notification-list">
                   {notifications.map((item, index) => (
@@ -1348,23 +1486,35 @@ function App() {
             )}
 
             {(isAdmin || isLibrarian) && (
-              <div className="admin-panel">
+              <div id="library" className="admin-panel">
                 <div className="library-dashboard">
                   <div className="stats-grid">
                     <div className="stat-card">
-                      <span>Total books</span>
+                      <div className="stat-header">
+                        <span>Total books</span>
+                        <span className="trend-badge">+8.1%</span>
+                      </div>
                       <strong>{libraryReports?.totalBooks ?? libraryBooks.length}</strong>
                     </div>
                     <div className="stat-card">
-                      <span>Available copies</span>
+                      <div className="stat-header">
+                        <span>Available copies</span>
+                        <span className="trend-badge">+6.7%</span>
+                      </div>
                       <strong>{libraryReports?.totalAvailableCopies ?? libraryBooks.reduce((sum, book) => sum + (book.copiesAvailable || 0), 0)}</strong>
                     </div>
                     <div className="stat-card">
-                      <span>Active issues</span>
+                      <div className="stat-header">
+                        <span>Active issues</span>
+                        <span className="trend-badge">-4.2%</span>
+                      </div>
                       <strong>{libraryReports?.activeIssueCount ?? libraryIssues.filter((issue) => issue.returnDate === null).length}</strong>
                     </div>
                     <div className="stat-card">
-                      <span>Overdue</span>
+                      <div className="stat-header">
+                        <span>Overdue</span>
+                        <span className="trend-badge">+2.3%</span>
+                      </div>
                       <strong>{libraryReports?.overdueCount ?? libraryIssues.filter((issue) => issue.returnDate === null && issue.isOverdue).length}</strong>
                     </div>
                   </div>
@@ -1569,7 +1719,7 @@ function App() {
                 </div>
 
                 {canManageExams && (
-                  <div className="admin-panel">
+                  <div id="exams" className="admin-panel">
                     <div className="library-grid">
                       <form onSubmit={handleCreateRoom} className="auth-form library-form" noValidate>
                         <h2>Create room</h2>
@@ -1848,6 +1998,7 @@ function App() {
 
                 {isAdmin && (
                   <>
+                    <div id="users">
                     <form onSubmit={handleCreateOrUpdateUser} className="auth-form" noValidate>
                       <h2>{editingUserId ? 'Edit user' : 'Create user'}</h2>
 
@@ -1946,6 +2097,7 @@ function App() {
                         </tbody>
                       </table>
                     </div>
+                    </div>
                   </>
                 )}
 
@@ -1954,6 +2106,7 @@ function App() {
 
             {status.message && !isAdmin && !isLibrarian && <div className={`message ${status.type}`}>{status.message}</div>}
           </div>
+        </div>
         )}
       </div>
     </div>

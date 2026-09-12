@@ -8,12 +8,21 @@ using LibraryExamAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "LibraryExamAPI",
+        Version = "v1",
+        Description = "Library and exam portal API"
+    });
+});
 builder.Services.AddSignalR();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -74,7 +83,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "LibraryExamAPI v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 app.UseCors("AllowClientApp");
