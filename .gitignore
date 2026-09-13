@@ -72,3 +72,9 @@ Thumbs.db
 *.dll
 *.exe
 *.pdb
+
+# Ignore debug build output and generated editorconfig files
+api-obj/Debug/
+**/Debug/
+*.editorconfig
+
