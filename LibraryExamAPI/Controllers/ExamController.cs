@@ -61,6 +61,32 @@ public class ExamController : ControllerBase
         return Ok(new { message = "Room created successfully.", roomId = room.RoomId });
     }
 
+    [HttpPut("rooms/{id:int}")]
+    [Authorize(Roles = "Admin,Exam Coordinator")]
+    public async Task<IActionResult> UpdateRoom(int id, [FromBody] CreateRoomRequest request)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var room = await _db.Rooms.FindAsync(id);
+        if (room == null) return NotFound(new { message = "Room not found." });
+        room.RoomNo = request.RoomNo.Trim();
+        room.Capacity = request.Capacity;
+        room.BenchLayout = request.BenchLayout.Trim();
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Room updated successfully." });
+    }
+
+    [HttpDelete("rooms/{id:int}")]
+    [Authorize(Roles = "Admin,Exam Coordinator")]
+    public async Task<IActionResult> DeleteRoom(int id)
+    {
+        var room = await _db.Rooms.Include(r => r.SeatAllocations).FirstOrDefaultAsync(r => r.RoomId == id);
+        if (room == null) return NotFound(new { message = "Room not found." });
+        if (room.SeatAllocations.Count > 0) return BadRequest(new { message = "Cannot delete a room with seat allocations." });
+        _db.Rooms.Remove(room);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Room deleted successfully." });
+    }
+
     [HttpGet("invigilators")]
     [Authorize(Roles = "Admin,Exam Coordinator,Librarian")]
     public async Task<IActionResult> GetInvigilators()
@@ -98,6 +124,31 @@ public class ExamController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "Invigilator added successfully.", staffId = invigilator.StaffId });
+    }
+
+    [HttpPut("invigilators/{id:int}")]
+    [Authorize(Roles = "Admin,Exam Coordinator")]
+    public async Task<IActionResult> UpdateInvigilator(int id, [FromBody] CreateInvigilatorRequest request)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var invigilator = await _db.Invigilators.FindAsync(id);
+        if (invigilator == null) return NotFound(new { message = "Invigilator not found." });
+        invigilator.Name = request.Name.Trim();
+        invigilator.Dept = request.Dept.Trim();
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Invigilator updated successfully." });
+    }
+
+    [HttpDelete("invigilators/{id:int}")]
+    [Authorize(Roles = "Admin,Exam Coordinator")]
+    public async Task<IActionResult> DeleteInvigilator(int id)
+    {
+        var invigilator = await _db.Invigilators.Include(i => i.SeatAllocations).FirstOrDefaultAsync(i => i.StaffId == id);
+        if (invigilator == null) return NotFound(new { message = "Invigilator not found." });
+        if (invigilator.SeatAllocations.Count > 0) return BadRequest(new { message = "Cannot delete an invigilator with seat assignments." });
+        _db.Invigilators.Remove(invigilator);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Invigilator deleted successfully." });
     }
 
     [HttpGet("exams")]
@@ -142,6 +193,33 @@ public class ExamController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new { message = "Exam created successfully.", examId = exam.ExamId });
+    }
+
+    [HttpPut("exams/{id:int}")]
+    [Authorize(Roles = "Admin,Exam Coordinator")]
+    public async Task<IActionResult> UpdateExam(int id, [FromBody] CreateExamRequest request)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var exam = await _db.Exams.FindAsync(id);
+        if (exam == null) return NotFound(new { message = "Exam not found." });
+        exam.Course = request.Course.Trim();
+        exam.Semester = request.Semester;
+        exam.ExamDate = request.ExamDate;
+        exam.TimeSlot = request.TimeSlot.Trim();
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Exam updated successfully." });
+    }
+
+    [HttpDelete("exams/{id:int}")]
+    [Authorize(Roles = "Admin,Exam Coordinator")]
+    public async Task<IActionResult> DeleteExam(int id)
+    {
+        var exam = await _db.Exams.Include(e => e.SeatAllocations).FirstOrDefaultAsync(e => e.ExamId == id);
+        if (exam == null) return NotFound(new { message = "Exam not found." });
+        if (exam.SeatAllocations.Count > 0) return BadRequest(new { message = "Cannot delete an exam with seat allocations." });
+        _db.Exams.Remove(exam);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Exam deleted successfully." });
     }
 
     [HttpGet("allocations")]

@@ -243,6 +243,29 @@ using (var scope = app.Services.CreateScope())
         );
     }
 
+    var librarianEmail = "librarian1@library.edu";
+    var librarian = await db.Students.FirstOrDefaultAsync(s => s.Contact == librarianEmail);
+    if (librarian == null)
+    {
+        db.Students.Add(new Student
+        {
+            Name = "Library Librarian",
+            RollNo = "LIB-001",
+            Dept = "Library Services",
+            Semester = 1,
+            Contact = librarianEmail,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Lib@1234"),
+            Role = "Librarian",
+            IsVerified = true
+        });
+    }
+    else
+    {
+        librarian.PasswordHash = BCrypt.Net.BCrypt.HashPassword("Lib@1234");
+        librarian.Role = "Librarian";
+        librarian.IsVerified = true;
+    }
+
     await db.SaveChangesAsync();
 }
 

@@ -63,3 +63,12 @@ client/.cache/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Additional ignore patterns
+.next/
+.cache/
+.eslintcache
+.pnp.*
+*.dll
+*.exe
+*.pdb
