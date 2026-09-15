@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
+LoadEnvFiles();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -72,7 +74,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowClientApp", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+        var clientOrigins = builder.Configuration["ClientApp:AllowedOrigins"]?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            ?? ["http://localhost:5173", "http://127.0.0.1:5173"];
+
+        policy.WithOrigins(clientOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -270,5 +276,51 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+static void LoadEnvFiles()
+{
+    var currentDirectory = Directory.GetCurrentDirectory();
+    var candidatePaths = new[]
+    {
+        System.IO.Path.Combine(currentDirectory, ".env"),
+        System.IO.Path.Combine(currentDirectory, "..", ".env"),
+        System.IO.Path.Combine(AppContext.BaseDirectory, ".env")
+    }
+    .Select(System.IO.Path.GetFullPath)
+    .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var path in candidatePaths)
+    {
+        if (!File.Exists(path))
+        {
+            continue;
+        }
+
+        foreach (var rawLine in File.ReadAllLines(path))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0 || line.StartsWith('#'))
+            {
+                continue;
+            }
+
+            var separatorIndex = line.IndexOf('=');
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = line[..separatorIndex].Trim();
+            var value = line[(separatorIndex + 1)..].Trim().Trim('"', '\'');
+
+            if (string.IsNullOrWhiteSpace(key) || Environment.GetEnvironmentVariable(key) != null)
+            {
+                continue;
+            }
+
+            Environment.SetEnvironmentVariable(key, value);
+        }
+    }
+}
 
 public partial class Program { }

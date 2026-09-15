@@ -1,0 +1,16 @@
+.git/
+.vs/
+.vscode/
+client/node_modules/
+client/dist/
+LibraryExamAPI/bin/
+LibraryExamAPI/obj/
+LibraryExamAPI.Tests/bin/
+LibraryExamAPI.Tests/obj/
+api-out/
+api-obj/
+.env
+.env.*
+!.env.example
+**/*.user
+**/*.suo

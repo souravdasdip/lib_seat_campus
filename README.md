@@ -83,6 +83,14 @@ npm run dev -- --host 0.0.0.0 --port 5173
 Frontend URL:
 - `http://localhost:5173`
 
+## Deployment
+Deployment is prepared for:
+- Vercel frontend
+- Render backend
+- Neon PostgreSQL database
+
+Use [DEPLOYMENT.md](DEPLOYMENT.md) for the full setup procedure and required environment variables. Local environment templates are provided in `.env.example` and `client/.env.example`.
+
 ## Important verification endpoints
 Backend health check:
 
